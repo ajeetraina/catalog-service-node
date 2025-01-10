@@ -100,6 +100,7 @@ describe("Product creation", () => {
       action: "image_uploaded",
       product_id: createdProduct.id,
       filename: "product.png",
+      upc: "100000000002"
     });
 
     const retrievedImageStream = await productService.getProductImage(
