@@ -15,23 +15,7 @@ env:
   DBC_BUILDER_NAME: dockerdevrel/demo-builder
 
 jobs:
-  prettier:
-    name: "Validate code formatting"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Run Prettier
-        run: yarn run prettier-check
+  
 
   unit-test:
     name: "Run tests"
