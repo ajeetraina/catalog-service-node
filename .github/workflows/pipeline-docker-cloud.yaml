@@ -39,7 +39,6 @@ jobs:
   
   integration-test:
     name: "Run integration tests"
-    needs: [ prettier, unit-test ]
     runs-on: ubuntu-latest
 
     steps:
