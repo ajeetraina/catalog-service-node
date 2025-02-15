@@ -9,6 +9,7 @@
     "test": "jest",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
+    "test:e2e": "jest tests/e2e",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint .",
@@ -25,6 +26,9 @@
     "jest": "^27.0.6",
     "supertest": "^6.1.6",
     "nodemon": "^2.0.12",
-    "eslint": "^7.32.0"
+    "eslint": "^7.32.0",
+    "testcontainers": "^10.7.1",
+    "@testcontainers/kafka": "^10.7.1",
+    "@testcontainers/localstack": "^10.7.1"
   }
 }
