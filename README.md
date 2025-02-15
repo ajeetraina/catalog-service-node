@@ -27,20 +27,41 @@ flowchart TD
     G --> P[Vulnerability Fix]
 ```
 
-## Test Results
+## Documentation
 
-### Unit Tests
-```
-PASSED tests/unit/services/catalog.test.js
-  ✓ should create a new product (23ms)
-  ✓ should return list of products (12ms)
-```
+### Testing the Documentation
 
-### Integration Tests
+To test the documentation locally:
+
+1. Build and start the documentation server:
+   ```bash
+   docker-compose -f docker-compose.docs.yml up --build
+   ```
+
+2. Visit http://localhost:8000 in your browser
+
+3. Run the documentation tests:
+   ```bash
+   chmod +x scripts/test-docs.sh
+   ./scripts/test-docs.sh
+   ```
+
+The test script checks:
+- Page accessibility
+- Navigation structure
+- CSS and JavaScript loading
+- Code highlighting
+- Mermaid diagram rendering
+
+### Documentation Structure
+
 ```
-PASSED tests/integration/api/products.test.js
-  ✓ should return list of products (45ms)
-  ✓ should create a new product (78ms)
+docs/
+├── develop/         # Development setup and running services
+├── test/            # Testing guides and examples
+├── build/           # Building and deploying
+├── secure/          # Security scanning and best practices
+└── index.md         # Home page
 ```
 
 ## Features
@@ -48,7 +69,7 @@ PASSED tests/integration/api/products.test.js
 - REST API for product catalog
 - Kafka integration for event publishing
 - LocalStack for AWS service simulation
-- Comprehensive testing suite
+- Comprehensive testing suite with Testcontainers
 - Docker multi-stage builds
 - Security scanning with Docker Scout
 
