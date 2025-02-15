@@ -1,48 +1,41 @@
-###########################################################
-# Stage: base
-#
-# This stage serves as the base for all of the other stages.
-# By using this stage, it provides a consistent base for both
-# the dev and prod versions of the image.
-###########################################################
-FROM node:22-slim AS base
+# Build stage
+FROM node:16-alpine AS builder
 
-# Remove npm to resolve a currently known and fixable vulnerability 
-RUN npm uninstall npm -g
+# Set working directory
+WORKDIR /app
 
-# Setup a non-root user to run the app
-WORKDIR /usr/local/app
-RUN useradd -m appuser && chown -R appuser /usr/local/app
-COPY package.json yarn.lock ./
-RUN corepack enable
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Run tests
+RUN npm run test
+
+# Production stage
+FROM node:16-alpine
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy built application
+COPY --from=builder /app/src ./src
+
+# Set user
 USER appuser
 
-
-###########################################################
-# Stage: dev
-#
-# This stage is used to run the application in a development
-# environment. It installs all app dependencies and will
-# start the app in a mode that will watch for file changes
-# and automatically restart the app.
-###########################################################
-FROM base AS dev
-ENV NODE_ENV=development
-RUN yarn install
-CMD ["yarn", "dev-container"]
-
-
-###########################################################
-# Stage: final
-#
-# This stage serves as the final image for production. It
-# installs only the production dependencies.
-###########################################################
-FROM base AS final
-ENV NODE_ENV=production
-RUN yarn install && yarn cache clean
-COPY ./src ./src
-
+# Expose port
 EXPOSE 3000
 
-CMD [ "node", "src/index.js" ]
+# Start application
+CMD ["npm", "start"]
