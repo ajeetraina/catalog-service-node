@@ -46,26 +46,36 @@ async function getFile(id) {
   }
 }
 
-async function uploadFile(id, buffer) {
+async function uploadFile(id, buffer, contentType = "image/png") {
   const name = "product.png";
+  
+  console.log(`Uploading image for product ${id}, buffer size: ${buffer.length}, type: ${contentType}`);
 
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: `${id}/${name}`,
-      Body: buffer,
-    }),
-  );
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: `${id}/${name}`,
+        Body: buffer,
+        ContentType: contentType,
+        // Add cache-control to prevent browser caching
+        CacheControl: "no-cache, no-store, must-revalidate",
+      }),
+    );
 
-  const details = {
-    action: "image_uploaded",
-    product_id: id,
-    filename: name,
-  };
+    const details = {
+      action: "image_uploaded",
+      product_id: id,
+      filename: name,
+    };
 
-  await publishEvent("products", details);
+    await publishEvent("products", details);
 
-  return details;
+    return details;
+  } catch (error) {
+    console.error(`Error uploading file for product ${id}:`, error);
+    throw error;
+  }
 }
 
 // Creates a default placeholder image for products that don't have one
@@ -99,6 +109,7 @@ async function ensureBucketExists() {
           Bucket: BUCKET_NAME,
           Key: "placeholder.png",
           Body: transparentPixel,
+          ContentType: "image/png",
         }),
       );
     }
