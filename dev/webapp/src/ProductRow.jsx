@@ -83,6 +83,19 @@ export function ProductRow({ product, onChange }) {
       });
   }, [product.id, onChange]);
 
+  // Reload image with a new timestamp to bypass cache
+  const reloadImage = useCallback(() => {
+    const cacheBuster = `reload=${Date.now()}-${Math.random()}`;
+    const url = `/api/products/${product.id}/image?${cacheBuster}`;
+    
+    setImageState({
+      loading: true,
+      error: false,
+      retries: 0,
+      url: url
+    });
+  }, [product.id]);
+
   // Handle image load error - retry with exponential backoff
   const handleImageError = useCallback(() => {
     if (imageState.retries < 3) {
@@ -147,8 +160,21 @@ export function ProductRow({ product, onChange }) {
             
             {imageState.error ? (
               <div>
-                <div style={{ color: 'red' }}>Error loading image</div>
-                <button className="smaller" onClick={uploadImage}>
+                <div style={{ color: 'red' }}>
+                  Error loading image
+                </div>
+                <button 
+                  onClick={reloadImage}
+                  style={{
+                    backgroundColor: '#f44336',
+                    color: 'white',
+                    border: 'none',
+                    padding: '5px 10px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    margin: '5px 0'
+                  }}
+                >
                   Try Again
                 </button>
               </div>
@@ -162,7 +188,8 @@ export function ProductRow({ product, onChange }) {
                     maxWidth: '100px', 
                     maxHeight: '100px',
                     border: '1px solid #ccc',
-                    display: imageState.loading ? 'none' : 'block'
+                    display: imageState.loading ? 'none' : 'block',
+                    margin: '0 auto'
                   }}
                   onError={handleImageError}
                   onLoad={handleImageLoad}
