@@ -1,8 +1,5 @@
 const { createProduct } = require("./ProductService");
-const { uploadFile } = require("./StorageService");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+const DirectImageService = require("./DirectImageService");
 
 // Product categories with associated templates and image generation data
 const productCategories = [
@@ -98,113 +95,6 @@ function generateUPC() {
   return Array.from({length: 12}, () => Math.floor(Math.random() * 10)).join('');
 }
 
-// Create a simple SVG image based on product category
-function generateProductImage(category) {
-  const colors = category.colors;
-  const mainColor = colors[Math.floor(Math.random() * colors.length)];
-  const accentColor = colors[Math.floor(Math.random() * colors.length)];
-  const backgroundColor = '#FFFFFF';
-  
-  // Make sure main and accent colors are different
-  const secondaryColor = mainColor === accentColor ? 
-    colors[Math.floor(Math.random() * colors.length) % colors.length] : 
-    accentColor;
-  
-  // Canvas size
-  const width = 300;
-  const height = 300;
-  
-  // Generate a random shape based on the category
-  let shapeElement;
-  const cx = width / 2;
-  const cy = height / 2;
-  
-  switch(category.shape) {
-    case 'circle':
-      const radius = 100 + Math.floor(Math.random() * 50);
-      shapeElement = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-      break;
-    case 'square':
-      const size = 150 + Math.floor(Math.random() * 40);
-      shapeElement = `<rect x="${cx - size/2}" y="${cy - size/2}" width="${size}" height="${size}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-      break;
-    case 'triangle':
-      const points = `${cx},${cy - 80} ${cx - 80},${cy + 60} ${cx + 80},${cy + 60}`;
-      shapeElement = `<polygon points="${points}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-      break;
-    case 'hexagon':
-      const r = 80;
-      const hexPoints = Array.from({length: 6}, (_, i) => {
-        const angle = (Math.PI / 3) * i;
-        const x = cx + r * Math.cos(angle);
-        const y = cy + r * Math.sin(angle);
-        return `${x},${y}`;
-      }).join(' ');
-      shapeElement = `<polygon points="${hexPoints}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-      break;
-    case 'round':
-      const ellipseRx = 100;
-      const ellipseRy = 80;
-      shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${ellipseRx}" ry="${ellipseRy}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-      break;
-    default:
-      // Default to a circle
-      shapeElement = `<circle cx="${cx}" cy="${cy}" r="100" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
-  }
-  
-  // Add some decorative elements based on category
-  let decorations = '';
-  
-  if (category.category === 'Audio') {
-    // Sound waves
-    decorations = `
-      <circle cx="${cx}" cy="${cy}" r="30" fill="${secondaryColor}" />
-      <circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="${secondaryColor}" stroke-width="2" stroke-dasharray="5,5" />
-      <circle cx="${cx}" cy="${cy}" r="70" fill="none" stroke="${secondaryColor}" stroke-width="2" stroke-dasharray="5,5" />
-    `;
-  } else if (category.category === 'Lighting') {
-    // Light rays
-    const rays = Array.from({length: 8}, (_, i) => {
-      const angle = (Math.PI / 4) * i;
-      const x1 = cx + 60 * Math.cos(angle);
-      const y1 = cy + 60 * Math.sin(angle);
-      const x2 = cx + 120 * Math.cos(angle);
-      const y2 = cy + 120 * Math.sin(angle);
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${secondaryColor}" stroke-width="3" />`;
-    }).join('');
-    decorations = rays;
-  } else if (category.category === 'Wellness') {
-    // Concentric circles for meditation
-    decorations = `
-      <circle cx="${cx}" cy="${cy}" r="40" fill="none" stroke="${secondaryColor}" stroke-width="3" />
-      <circle cx="${cx}" cy="${cy}" r="60" fill="none" stroke="${secondaryColor}" stroke-width="2" />
-      <circle cx="${cx}" cy="${cy}" r="80" fill="none" stroke="${secondaryColor}" stroke-width="1" />
-    `;
-  } else if (category.category === 'Time') {
-    // Clock hands
-    const hourHand = `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 40}" stroke="${secondaryColor}" stroke-width="4" />`;
-    const minuteHand = `<line x1="${cx}" y1="${cy}" x2="${cx + 60}" y2="${cy}" stroke="${secondaryColor}" stroke-width="3" />`;
-    decorations = hourHand + minuteHand + `<circle cx="${cx}" cy="${cy}" r="5" fill="${secondaryColor}" />`;
-  } else if (category.category === 'Creativity') {
-    // Abstract shapes
-    decorations = `
-      <circle cx="${cx - 40}" cy="${cy - 40}" r="20" fill="${secondaryColor}" fill-opacity="0.6" />
-      <rect x="${cx + 20}" y="${cy - 60}" width="30" height="30" fill="${secondaryColor}" fill-opacity="0.6" />
-      <polygon points="${cx - 20},${cy + 40} ${cx},${cy + 60} ${cx + 20},${cy + 40}" fill="${secondaryColor}" fill-opacity="0.6" />
-    `;
-  }
-  
-  // Generate the SVG
-  const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${width}" height="${height}" fill="${backgroundColor}" />
-  ${shapeElement}
-  ${decorations}
-</svg>`;
-  
-  return Buffer.from(svg);
-}
-
 // Create a random product based on the templates
 async function generateRandomProduct() {
   // Select random category
@@ -238,16 +128,13 @@ async function generateRandomProduct() {
     // Create the product in the database
     const product = await createProduct(productData);
     
-    // Generate and upload an image for the product
-    const imageBuffer = generateProductImage(category);
+    console.log(`Created random product: ${name} (ID: ${product.id})`);
     
-    // Log the image creation process
-    console.log(`Generated SVG image for product ${product.id} (${name}), category: ${category.category}, size: ${imageBuffer.length} bytes`);
+    // After the product is created, the ID will be automatically be used by DirectImageService
+    // to generate a unique image for the product
     
-    // Upload the SVG as the product image
-    await uploadFile(product.id, imageBuffer, "image/svg+xml");
-    
-    console.log(`Successfully uploaded image for product ${product.id}`);
+    // Update the product to indicate it has an image
+    require("./ProductService").markProductHasImage(product.id);
     
     return product;
   } catch (error) {
