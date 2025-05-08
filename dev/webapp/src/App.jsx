@@ -6,7 +6,8 @@ import sampleProducts from "./sample-products.json";
 function App() {
   const [catalog, setCatalog] = useState(null);
   const [errorOccurred, setErrorOccurred] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [randomMode, setRandomMode] = useState(true); // Default to random generation
 
   const fetchCatalog = useCallback(() => {
     setErrorOccurred(false);
@@ -21,7 +22,8 @@ function App() {
       });
   }, [setErrorOccurred, setCatalog]);
 
-  const createProduct = useCallback(() => {
+  // Legacy create product with fixed data
+  const createLegacyProduct = useCallback(() => {
     const body = {
       price: 100 + Math.floor(Math.random() * 100),
       upc: 100000000000 + catalog.length + 1,
@@ -35,16 +37,26 @@ function App() {
       body.description = "A fancy description for an awesome product";
     }
 
+    setIsCreating(true);
+
     fetch("/api/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(fetchCatalog);
+    })
+      .then(() => {
+        fetchCatalog();
+        setIsCreating(false);
+      })
+      .catch(error => {
+        console.error("Error creating product:", error);
+        setIsCreating(false);
+      });
   }, [catalog, fetchCatalog]);
 
   // New function to generate a random product
-  const generateRandomProduct = useCallback(() => {
-    setIsGenerating(true);
+  const createRandomProduct = useCallback(() => {
+    setIsCreating(true);
     
     fetch("/api/random-product", {
       method: "POST",
@@ -58,14 +70,28 @@ function App() {
       })
       .then(() => {
         fetchCatalog();
-        setIsGenerating(false);
+        setIsCreating(false);
       })
       .catch(error => {
         console.error("Error generating random product:", error);
-        setIsGenerating(false);
+        setIsCreating(false);
         setErrorOccurred(true);
       });
   }, [fetchCatalog]);
+
+  // Combined create product function that uses random mode setting
+  const createProduct = useCallback(() => {
+    if (randomMode) {
+      createRandomProduct();
+    } else {
+      createLegacyProduct();
+    }
+  }, [randomMode, createRandomProduct, createLegacyProduct]);
+
+  // Toggle between random and legacy mode
+  const toggleRandomMode = useCallback(() => {
+    setRandomMode(prev => !prev);
+  }, []);
 
   useEffect(() => {
     fetchCatalog();
@@ -78,18 +104,29 @@ function App() {
       <p>
         <button onClick={fetchCatalog}>Refresh catalog</button>
         &nbsp;
-        <button onClick={createProduct}>Create product</button>
-        &nbsp;
         <button 
-          onClick={generateRandomProduct} 
-          disabled={isGenerating}
+          onClick={createProduct} 
+          disabled={isCreating}
           style={{ 
-            backgroundColor: '#4CAF50', 
+            backgroundColor: randomMode ? '#4CAF50' : '#2196F3', 
             color: 'white',
             fontWeight: 'bold'
           }}
         >
-          {isGenerating ? 'Generating...' : 'Generate Random Product'}
+          {isCreating ? 'Creating...' : randomMode ? 'Create Random Product' : 'Create Product'}
+        </button>
+        &nbsp;
+        <button 
+          onClick={toggleRandomMode} 
+          style={{ 
+            backgroundColor: 'transparent',
+            border: '1px solid #ccc',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            borderRadius: '4px'
+          }}
+        >
+          Mode: {randomMode ? 'Random' : 'Fixed'}
         </button>
       </p>
 
