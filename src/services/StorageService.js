@@ -7,6 +7,7 @@ const {
   ListBucketsCommand
 } = require("@aws-sdk/client-s3");
 const { publishEvent } = require("./PublisherService");
+const { generateColoredSvg } = require("./ImageGenerator");
 
 // Configure S3 client for LocalStack
 const s3Client = new S3Client({
@@ -21,7 +22,7 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.PRODUCT_IMAGE_BUCKET_NAME || "product-images";
 
-async function getFile(id) {
+async function getFile(id, productName = '') {
   const name = "product.png";
   const key = `${id}/${name}`;
 
@@ -42,8 +43,29 @@ async function getFile(id) {
     console.error(`Error getting file for product ${id}:`, error.name, error.message);
     
     if (error.name === 'NoSuchKey' || error.name === 'NotFound') {
-      console.log(`Image not found for product ${id}, using placeholder`);
-      return null;
+      console.log(`Image not found for product ${id}, generating one on-the-fly`);
+      
+      // Generate a sample image using the SVG generation code
+      try {
+        const svgData = generateColoredSvg(id, productName);
+        
+        // Upload the generated image to S3
+        await uploadFile(id, svgData, 'image/svg+xml');
+        
+        // Now try to get it again
+        const result = await s3Client.send(
+          new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key,
+          }),
+        );
+        
+        console.log(`Generated and retrieved file for product ${id}`);
+        return result.Body;
+      } catch (genError) {
+        console.error(`Failed to generate image for product ${id}:`, genError);
+        return null;
+      }
     }
     
     // For other errors, rethrow to be handled by the caller
@@ -61,6 +83,9 @@ async function uploadFile(id, buffer, contentType = "image/png") {
   try {
     // Generate a unique version ID to prevent caching
     const versionId = Date.now().toString();
+    
+    // Ensure bucket exists
+    await ensureBucketExists();
     
     // Upload the file to S3
     const uploadResult = await s3Client.send(
@@ -117,27 +142,38 @@ async function ensureBucketExists() {
     }
     
     // Add a placeholder image
-    console.log("Creating placeholder image in S3 bucket...");
-    
-    // Small 1x1 transparent pixel PNG
-    const transparentPixel = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-      "base64"
-    );
-    
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: "placeholder.png",
-        Body: transparentPixel,
-        ContentType: "image/png",
-      }),
-    );
+    try {
+      await s3Client.send(
+        new HeadObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: "placeholder.png",
+        }),
+      );
+    } catch (error) {
+      console.log("Creating placeholder image in S3 bucket...");
+      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="300" fill="#f5f5f5" />
+  <rect x="20" y="20" width="260" height="260" rx="20" fill="#dddddd" />
+  <text x="150" y="150" font-family="Arial" font-size="24" fill="#555555" text-anchor="middle">LocalStack Demo</text>
+  <text x="150" y="190" font-family="Arial" font-size="18" fill="#555555" text-anchor="middle">Product Image</text>
+</svg>`;
+      
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: "placeholder.png",
+          Body: Buffer.from(placeholderSvg),
+          ContentType: "image/svg+xml",
+        }),
+      );
+    }
     
     console.log("LocalStack S3 initialization complete");
+    return true;
   } catch (error) {
-    console.error("Error ensuring bucket exists:", error.name, error.message);
-    console.error("Full error:", error);
+    console.error("Error ensuring bucket exists:", error);
+    return false;
   }
 }
 
