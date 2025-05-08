@@ -14,7 +14,8 @@
     "prepare": "husky install",
     "init-localstack": "node scripts/initialize-localstack.js",
     "setup": "npm run init-localstack",
-    "force-images": "node scripts/force-distinct-images.js"
+    "force-images": "node scripts/force-distinct-images.js",
+    "create-images": "node scripts/create-sample-images.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.651.1",
