@@ -1,6 +1,7 @@
 const { Client } = require("pg");
 
 const { getInventoryForProduct } = require("./InventoryService");
+const { getFile, uploadFile } = require("./StorageService");
 const { publishEvent } = require("./PublisherService");
 
 let client;
@@ -80,21 +81,24 @@ async function getProductById(id) {
   };
 }
 
-// This method is no longer used since we're using DirectImageService, but kept for backward compatibility
 async function getProductImage(id) {
-  // This function is basically a no-op now
-  console.log(`getProductImage called for product ${id} - using DirectImageService instead`);
-  return null;
+  // First, get the product to pass the name to the StorageService
+  const product = await getProductById(id);
+  if (!product) {
+    console.error(`Product ${id} not found when getting image`);
+    return null;
+  }
+  
+  // Pass the product name to the StorageService for better image generation
+  return getFile(id, product.name);
 }
 
-// This method is no longer used since we're using DirectImageService, but kept for backward compatibility
 async function uploadProductImage(id, buffer, contentType = "image/png") {
-  // This function is basically a no-op now
-  console.log(`uploadProductImage called for product ${id} - using DirectImageService instead`);
+  const result = await uploadFile(id, buffer, contentType);
   return markProductHasImage(id);
 }
 
-// New method to mark a product as having an image
+// Mark a product as having an image
 async function markProductHasImage(id) {
   const client = await getClient();
   
