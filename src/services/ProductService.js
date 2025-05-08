@@ -85,11 +85,33 @@ async function getProductImage(id) {
   return getFile(id);
 }
 
-async function uploadProductImage(id, buffer) {
+async function uploadProductImage(id, buffer, contentType = "image/png") {
   const client = await getClient();
-
-  await uploadFile(id, buffer);
-  await client.query("UPDATE products SET has_image=TRUE WHERE id=$1", [id]);
+  
+  try {
+    console.log(`Uploading image for product ${id}`);
+    
+    // Upload the image to S3
+    await uploadFile(id, buffer, contentType);
+    
+    // Update the database to indicate this product has an image
+    await client.query("UPDATE products SET has_image=TRUE WHERE id=$1", [id]);
+    
+    // Get the updated product
+    const result = await client.query("SELECT * FROM products WHERE id = $1", [id]);
+    
+    if (result.rows.length === 0) {
+      console.error(`Product ${id} not found after image upload`);
+      return null;
+    }
+    
+    console.log(`Successfully set has_image=TRUE for product ${id}`);
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error(`Error in uploadProductImage for product ${id}:`, error);
+    throw error;
+  }
 }
 
 module.exports = {
