@@ -1,7 +1,6 @@
 const { Client } = require("pg");
 
 const { getInventoryForProduct } = require("./InventoryService");
-const { uploadFile, getFile } = require("./StorageService");
 const { publishEvent } = require("./PublisherService");
 
 let client;
@@ -81,18 +80,26 @@ async function getProductById(id) {
   };
 }
 
+// This method is no longer used since we're using DirectImageService, but kept for backward compatibility
 async function getProductImage(id) {
-  return getFile(id);
+  // This function is basically a no-op now
+  console.log(`getProductImage called for product ${id} - using DirectImageService instead`);
+  return null;
 }
 
+// This method is no longer used since we're using DirectImageService, but kept for backward compatibility
 async function uploadProductImage(id, buffer, contentType = "image/png") {
+  // This function is basically a no-op now
+  console.log(`uploadProductImage called for product ${id} - using DirectImageService instead`);
+  return markProductHasImage(id);
+}
+
+// New method to mark a product as having an image
+async function markProductHasImage(id) {
   const client = await getClient();
   
   try {
-    console.log(`Uploading image for product ${id}`);
-    
-    // Upload the image to S3
-    await uploadFile(id, buffer, contentType);
+    console.log(`Setting has_image=TRUE for product ${id}`);
     
     // Update the database to indicate this product has an image
     await client.query("UPDATE products SET has_image=TRUE WHERE id=$1", [id]);
@@ -101,7 +108,7 @@ async function uploadProductImage(id, buffer, contentType = "image/png") {
     const result = await client.query("SELECT * FROM products WHERE id = $1", [id]);
     
     if (result.rows.length === 0) {
-      console.error(`Product ${id} not found after image upload`);
+      console.error(`Product ${id} not found after marking has_image`);
       return null;
     }
     
@@ -109,7 +116,7 @@ async function uploadProductImage(id, buffer, contentType = "image/png") {
     
     return result.rows[0];
   } catch (error) {
-    console.error(`Error in uploadProductImage for product ${id}:`, error);
+    console.error(`Error in markProductHasImage for product ${id}:`, error);
     throw error;
   }
 }
@@ -120,5 +127,6 @@ module.exports = {
   getProductById,
   getProductImage,
   uploadProductImage,
+  markProductHasImage,
   teardown,
 };
