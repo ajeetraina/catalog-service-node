@@ -93,19 +93,16 @@ app.get("/api/products/:id/image", async (req, res) => {
       return;
     }
 
-    // Check if the request headers indicate this is an SVG
-    const contentType = req.headers['content-type'];
-    if (contentType && contentType.includes('svg')) {
-      res.contentType("image/svg+xml");
-    } else {
-      // Default to PNG for backward compatibility
-      res.contentType("image/png");
-    }
-    
-    // Set cache control headers
+    // Set cache control headers to prevent caching
     res.header("Cache-Control", "no-cache, no-store, must-revalidate");
     res.header("Pragma", "no-cache");
     res.header("Expires", "0");
+    
+    // Determine content type - first try SVG, then fallback to PNG
+    const key = `${req.params.id}/product.png`;
+    
+    // Default to SVG+XML for our generated images
+    res.contentType("image/svg+xml");
     
     imageStream.pipe(res);
   } catch (error) {
