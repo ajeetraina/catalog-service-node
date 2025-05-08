@@ -20,6 +20,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Add cache-control headers for all responses
+app.use((req, res, next) => {
+  res.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.header("Pragma", "no-cache");
+  res.header("Expires", "0");
+  next();
+});
+
 const upload = multer({ dest: os.tmpdir() });
 
 app.get("/", (req, res) => {
@@ -85,7 +93,20 @@ app.get("/api/products/:id/image", async (req, res) => {
       return;
     }
 
-    res.contentType("image/png");
+    // Check if the request headers indicate this is an SVG
+    const contentType = req.headers['content-type'];
+    if (contentType && contentType.includes('svg')) {
+      res.contentType("image/svg+xml");
+    } else {
+      // Default to PNG for backward compatibility
+      res.contentType("image/png");
+    }
+    
+    // Set cache control headers
+    res.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.header("Pragma", "no-cache");
+    res.header("Expires", "0");
+    
     imageStream.pipe(res);
   } catch (error) {
     console.error("Error retrieving product image:", error);
@@ -94,12 +115,21 @@ app.get("/api/products/:id/image", async (req, res) => {
 });
 
 app.post("/api/products/:id/image", upload.single("file"), async (req, res) => {
-  const product = await ProductService.uploadProductImage(
-    req.params.id,
-    fs.readFileSync(req.file.path),
-  );
+  try {
+    // Determine content type from file
+    const contentType = req.file.mimetype || "image/png";
+    
+    const product = await ProductService.uploadProductImage(
+      req.params.id,
+      fs.readFileSync(req.file.path),
+      contentType
+    );
 
-  res.json(product);
+    res.json(product);
+  } catch (error) {
+    console.error("Error uploading product image:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(3000, () => {
