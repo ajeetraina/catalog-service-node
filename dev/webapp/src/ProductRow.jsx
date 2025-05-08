@@ -3,21 +3,28 @@ import productImage from "./product-image.png";
 
 export function ProductRow({ product, onChange }) {
   const [inventoryDetails, setInventoryDetails] = useState(null);
-  const [timestamp, setTimestamp] = useState(Date.now());
-  const [imgSrc, setImgSrc] = useState(null);
+  const [imageState, setImageState] = useState({
+    loading: true,
+    error: false,
+    retries: 0,
+    url: null
+  });
   const imgRef = useRef(null);
 
-  // Force image refresh periodically
+  // Generate a new image URL for this product with cache-busting
   useEffect(() => {
-    // Generate a new timestamp for the image URL
-    setTimestamp(Date.now());
-    
-    // Create a unique image URL with timestamp to prevent caching
-    if (product.has_image) {
-      const imageUrl = `/api/products/${product.id}/image?t=${timestamp}&nocache=${Math.random()}`;
-      setImgSrc(imageUrl);
+    if (product && product.has_image) {
+      const cacheBuster = `nocache=${Date.now()}-${Math.random()}`;
+      const baseUrl = `/api/products/${product.id}/image`;
+      const url = `${baseUrl}?${cacheBuster}`;
+      
+      setImageState(prev => ({
+        ...prev,
+        loading: true,
+        url: url
+      }));
     }
-  }, [product, product.id, product.has_image]);
+  }, [product]);
 
   const fetchInventoryDetails = useCallback(() => {
     fetch(`/api/products/${product.id}`)
@@ -27,6 +34,13 @@ export function ProductRow({ product, onChange }) {
   }, [product.id, onChange, setInventoryDetails]);
 
   const uploadImage = useCallback(() => {
+    // Set loading state
+    setImageState(prev => ({
+      ...prev,
+      loading: true,
+      error: false
+    }));
+    
     fetch(productImage)
       .then((r) => r.blob())
       .then((fileBlob) => {
@@ -37,32 +51,72 @@ export function ProductRow({ product, onChange }) {
         const formData = new FormData();
         formData.append("file", file);
 
-        fetch(`/api/products/${product.id}/image`, {
+        return fetch(`/api/products/${product.id}/image`, {
           method: "POST",
           body: formData,
-        })
-          .then(() => {
-            // Force reload the image by updating timestamp
-            setTimestamp(Date.now());
-            onChange(); // Refresh the product data
+        });
+      })
+      .then(() => {
+        // Force a complete product data refresh
+        onChange();
+        
+        // Wait a moment to let S3 propagate, then update UI
+        setTimeout(() => {
+          const cacheBuster = `nocache=${Date.now()}-${Math.random()}`;
+          const url = `/api/products/${product.id}/image?${cacheBuster}`;
+          
+          setImageState({
+            loading: false,
+            error: false,
+            retries: 0,
+            url: url
           });
+        }, 500);
+      })
+      .catch(error => {
+        console.error("Error uploading image:", error);
+        setImageState(prev => ({
+          ...prev,
+          loading: false,
+          error: true
+        }));
       });
   }, [product.id, onChange]);
 
-  // This function is used to force reload the image when clicking on it
-  const reloadImage = useCallback(() => {
-    if (imgRef.current) {
-      // Force browser to reload by setting a new src
-      setTimestamp(Date.now());
-      
-      // This is a hack to force the browser to actually reload the image
-      const img = imgRef.current;
-      img.src = `/api/products/${product.id}/image?t=${Date.now()}&forcereload=${Math.random()}`;
-      
-      // Also trigger the parent's onChange handler to refresh product data
-      onChange();
+  // Handle image load error - retry with exponential backoff
+  const handleImageError = useCallback(() => {
+    if (imageState.retries < 3) {
+      console.log(`Image load failed for product ${product.id}, retrying... (${imageState.retries + 1}/3)`);
+      setTimeout(() => {
+        const cacheBuster = `retry=${Date.now()}-${Math.random()}`;
+        const baseUrl = `/api/products/${product.id}/image`;
+        const url = `${baseUrl}?${cacheBuster}`;
+        
+        setImageState(prev => ({
+          ...prev,
+          loading: true,
+          retries: prev.retries + 1,
+          url: url
+        }));
+      }, Math.pow(2, imageState.retries) * 500); // Exponential backoff: 500ms, 1000ms, 2000ms
+    } else {
+      console.error(`Failed to load image for product ${product.id} after multiple attempts`);
+      setImageState(prev => ({
+        ...prev,
+        loading: false,
+        error: true
+      }));
     }
-  }, [product.id, onChange]);
+  }, [product.id, imageState.retries]);
+
+  // Handle successful image load
+  const handleImageLoad = useCallback(() => {
+    setImageState(prev => ({
+      ...prev,
+      loading: false,
+      error: false
+    }));
+  }, []);
 
   return (
     <tr>
@@ -88,20 +142,42 @@ export function ProductRow({ product, onChange }) {
       </td>
       <td>
         {product.has_image ? (
-          <img 
-            ref={imgRef}
-            src={imgSrc}
-            alt={product.name} 
-            style={{ 
-              maxWidth: '100px', 
-              maxHeight: '100px',
-              cursor: 'pointer',
-              border: '1px solid #ccc'
-            }}
-            onClick={reloadImage}
-            title="Click to reload image"
-            key={`img-${product.id}-${timestamp}`} // Force React to recreate the img element
-          />
+          <div style={{ textAlign: 'center' }}>
+            {imageState.loading && <div>Loading...</div>}
+            
+            {imageState.error ? (
+              <div>
+                <div style={{ color: 'red' }}>Error loading image</div>
+                <button className="smaller" onClick={uploadImage}>
+                  Try Again
+                </button>
+              </div>
+            ) : (
+              <div>
+                <img 
+                  ref={imgRef}
+                  src={imageState.url}
+                  alt={`Product ${product.id}`}
+                  style={{ 
+                    maxWidth: '100px', 
+                    maxHeight: '100px',
+                    border: '1px solid #ccc',
+                    display: imageState.loading ? 'none' : 'block'
+                  }}
+                  onError={handleImageError}
+                  onLoad={handleImageLoad}
+                  key={`img-${product.id}-${imageState.url}`} // Force React to recreate the img element
+                />
+                <div style={{ 
+                  fontSize: '12px', 
+                  marginTop: '4px',
+                  color: '#666'
+                }}>
+                  ID: {product.id}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <button className="smaller" onClick={uploadImage}>
             Upload
