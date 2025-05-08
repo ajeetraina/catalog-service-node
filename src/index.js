@@ -5,6 +5,7 @@ const express = require("express");
 const ProductService = require("./services/ProductService");
 const PublisherService = require("./services/PublisherService");
 const { generateRandomProduct } = require("./services/RandomProductGenerator");
+const DirectImageService = require("./services/DirectImageService");
 const multer = require("multer");
 
 const app = express();
@@ -78,17 +79,15 @@ app.get("/api/products/:id", async (req, res) => {
 });
 
 app.get("/api/products/:id/image", async (req, res) => {
-  const product = await ProductService.getProductById(req.params.id);
-
-  if (!product) {
-    res.status(404).send();
-    return;
-  }
+  const productId = req.params.id;
+  console.log(`Getting image for product ${productId}`);
 
   try {
-    const imageStream = await ProductService.getProductImage(req.params.id);
-
-    if (!imageStream) {
+    // Use our DirectImageService instead of S3
+    const image = DirectImageService.getImage(productId);
+    
+    if (!image) {
+      console.log(`No image found for product ${productId}`);
       res.status(404).send();
       return;
     }
@@ -98,33 +97,40 @@ app.get("/api/products/:id/image", async (req, res) => {
     res.header("Pragma", "no-cache");
     res.header("Expires", "0");
     
-    // Determine content type - first try SVG, then fallback to PNG
-    const key = `${req.params.id}/product.png`;
+    // Set content type from the image metadata
+    res.contentType(image.contentType);
     
-    // Default to SVG+XML for our generated images
-    res.contentType("image/svg+xml");
+    // Send the image data
+    res.send(image.data);
     
-    imageStream.pipe(res);
+    // Update the product has_image flag in the background
+    ProductService.markProductHasImage(productId).catch(err => {
+      console.error(`Error updating has_image flag for product ${productId}:`, err);
+    });
+    
   } catch (error) {
-    console.error("Error retrieving product image:", error);
-    res.status(404).send();
+    console.error(`Error retrieving product image for ${productId}:`, error);
+    res.status(500).send(`Error retrieving image: ${error.message}`);
   }
 });
 
 app.post("/api/products/:id/image", upload.single("file"), async (req, res) => {
+  const productId = req.params.id;
+  
   try {
-    // Determine content type from file
+    // Read the uploaded file
+    const fileData = fs.readFileSync(req.file.path);
     const contentType = req.file.mimetype || "image/png";
     
-    const product = await ProductService.uploadProductImage(
-      req.params.id,
-      fs.readFileSync(req.file.path),
-      contentType
-    );
-
+    // Store it directly with our DirectImageService
+    DirectImageService.storeImage(productId, fileData, contentType);
+    
+    // Update the product in the database
+    const product = await ProductService.markProductHasImage(productId);
+    
     res.json(product);
   } catch (error) {
-    console.error("Error uploading product image:", error);
+    console.error(`Error uploading image for product ${productId}:`, error);
     res.status(500).json({ error: error.message });
   }
 });
