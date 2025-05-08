@@ -11,7 +11,9 @@
     "unit-test": "env-cmd --file .env.node -- jest --detectOpenHandles --testPathIgnorePatterns \"test/integration/.*\\.spec\\.js\"",
     "integration-test": "env-cmd --file .env.node -- jest \"test/integration/.*\\.spec\\.js\" --detectOpenHandles",
     "test-watch": "env-cmd --file .env.node -- jest --watch \"test/**/*.spec.js\" --detectOpenHandles",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "init-localstack": "node scripts/initialize-localstack.js",
+    "setup": "npm run init-localstack"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.651.1",
@@ -45,5 +47,5 @@
       "prettier --write"
     ]
   },
-  "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
+  "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeefbd484a8f86c3cc3bbaf72"
 }
