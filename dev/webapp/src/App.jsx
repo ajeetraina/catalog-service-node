@@ -6,6 +6,7 @@ import sampleProducts from "./sample-products.json";
 function App() {
   const [catalog, setCatalog] = useState(null);
   const [errorOccurred, setErrorOccurred] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchCatalog = useCallback(() => {
     setErrorOccurred(false);
@@ -41,6 +42,31 @@ function App() {
     }).then(fetchCatalog);
   }, [catalog, fetchCatalog]);
 
+  // New function to generate a random product
+  const generateRandomProduct = useCallback(() => {
+    setIsGenerating(true);
+    
+    fetch("/api/random-product", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Failed to generate random product");
+        }
+        return response.json();
+      })
+      .then(() => {
+        fetchCatalog();
+        setIsGenerating(false);
+      })
+      .catch(error => {
+        console.error("Error generating random product:", error);
+        setIsGenerating(false);
+        setErrorOccurred(true);
+      });
+  }, [fetchCatalog]);
+
   useEffect(() => {
     fetchCatalog();
   }, [fetchCatalog]);
@@ -53,6 +79,18 @@ function App() {
         <button onClick={fetchCatalog}>Refresh catalog</button>
         &nbsp;
         <button onClick={createProduct}>Create product</button>
+        &nbsp;
+        <button 
+          onClick={generateRandomProduct} 
+          disabled={isGenerating}
+          style={{ 
+            backgroundColor: '#4CAF50', 
+            color: 'white',
+            fontWeight: 'bold'
+          }}
+        >
+          {isGenerating ? 'Generating...' : 'Generate Random Product'}
+        </button>
       </p>
 
       {catalog ? (
