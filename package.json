@@ -13,10 +13,12 @@
     "test-watch": "env-cmd --file .env.node -- jest --watch \"test/**/*.spec.js\" --detectOpenHandles",
     "prepare": "husky install",
     "init-localstack": "node scripts/initialize-localstack.js",
-    "setup": "npm run init-localstack"
+    "setup": "npm run init-localstack",
+    "force-images": "node scripts/force-distinct-images.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.651.1",
+    "canvas": "^2.11.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "kafkajs": "^2.2.4",
