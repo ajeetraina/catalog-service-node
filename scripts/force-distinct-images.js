@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
 // This script forces distinct images into LocalStack by using the AWS CLI directly
-// It creates a new set of png files locally and uploads them to LocalStack
+// It creates SVG images and uploads them to LocalStack
 
 require('dotenv').config();
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { createCanvas } = require('canvas');
 
 // Make sure temp directory exists
 const tempDir = path.join(__dirname, 'temp');
@@ -29,36 +28,25 @@ try {
   execSync(`aws --endpoint-url=${ENDPOINT} s3api create-bucket --bucket ${BUCKET_NAME}`);
 }
 
-// Function to create a simple colored PNG image
-function createColoredImage(id, width = 200, height = 200) {
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-  
+// Function to create a simple colored SVG image
+function createColoredSvg(id, width = 200, height = 200) {
   // Get a color based on the ID (to ensure it's consistent but different)
   // This creates a vibrant, distinct color for each ID
   const hue = (id * 137) % 360; // Golden ratio hack for nice distribution
   const saturation = 80;
   const lightness = 50;
   
-  // Background
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, width, height);
+  const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   
-  // Main colored rectangle
-  ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  ctx.fillRect(20, 20, width - 40, height - 40);
+  const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${width}" height="${height}" fill="white" />
+  <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="${color}" rx="20" ry="20" />
+  <text x="${width/2}" y="${height/2}" font-family="Arial" font-size="72" fill="white" text-anchor="middle" dominant-baseline="middle">${id}</text>
+</svg>`;
   
-  // Add product ID number
-  ctx.font = 'bold 48px Arial';
-  ctx.fillStyle = 'white';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(id.toString(), width/2, height/2);
-  
-  // Save to file
-  const buffer = canvas.toBuffer('image/png');
-  const filePath = path.join(tempDir, `product-${id}.png`);
-  fs.writeFileSync(filePath, buffer);
+  const filePath = path.join(tempDir, `product-${id}.svg`);
+  fs.writeFileSync(filePath, svg);
   
   return filePath;
 }
@@ -66,11 +54,11 @@ function createColoredImage(id, width = 200, height = 200) {
 // Create and upload distinct images for products
 console.log('Creating and uploading distinct images for products...');
 for (let id = 1; id <= 10; id++) {
-  const imagePath = createColoredImage(id);
+  const imagePath = createColoredSvg(id);
   
   // Upload with correct content type and cache control headers
   console.log(`Uploading image for product ${id}...`);
-  execSync(`aws --endpoint-url=${ENDPOINT} s3 cp "${imagePath}" "s3://${BUCKET_NAME}/${id}/product.png" --content-type "image/png" --cache-control "no-cache, no-store, must-revalidate, max-age=0"`);
+  execSync(`aws --endpoint-url=${ENDPOINT} s3 cp "${imagePath}" "s3://${BUCKET_NAME}/${id}/product.png" --content-type "image/svg+xml" --cache-control "no-cache, no-store, must-revalidate, max-age=0"`);
 }
 
 console.log('All images uploaded successfully!');
