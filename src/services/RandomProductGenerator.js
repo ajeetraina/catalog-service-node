@@ -105,6 +105,11 @@ function generateProductImage(category) {
   const accentColor = colors[Math.floor(Math.random() * colors.length)];
   const backgroundColor = '#FFFFFF';
   
+  // Make sure main and accent colors are different
+  const secondaryColor = mainColor === accentColor ? 
+    colors[Math.floor(Math.random() * colors.length) % colors.length] : 
+    accentColor;
+  
   // Canvas size
   const width = 300;
   const height = 300;
@@ -116,16 +121,16 @@ function generateProductImage(category) {
   
   switch(category.shape) {
     case 'circle':
-      const radius = 100 + Math.random() * 50;
-      shapeElement = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      const radius = 100 + Math.floor(Math.random() * 50);
+      shapeElement = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
       break;
     case 'square':
-      const size = 150 + Math.random() * 40;
-      shapeElement = `<rect x="${cx - size/2}" y="${cy - size/2}" width="${size}" height="${size}" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      const size = 150 + Math.floor(Math.random() * 40);
+      shapeElement = `<rect x="${cx - size/2}" y="${cy - size/2}" width="${size}" height="${size}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
       break;
     case 'triangle':
       const points = `${cx},${cy - 80} ${cx - 80},${cy + 60} ${cx + 80},${cy + 60}`;
-      shapeElement = `<polygon points="${points}" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      shapeElement = `<polygon points="${points}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
       break;
     case 'hexagon':
       const r = 80;
@@ -135,16 +140,16 @@ function generateProductImage(category) {
         const y = cy + r * Math.sin(angle);
         return `${x},${y}`;
       }).join(' ');
-      shapeElement = `<polygon points="${hexPoints}" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      shapeElement = `<polygon points="${hexPoints}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
       break;
     case 'round':
       const ellipseRx = 100;
       const ellipseRy = 80;
-      shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${ellipseRx}" ry="${ellipseRy}" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${ellipseRx}" ry="${ellipseRy}" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
       break;
     default:
       // Default to a circle
-      shapeElement = `<circle cx="${cx}" cy="${cy}" r="100" fill="${mainColor}" stroke="${accentColor}" stroke-width="5" />`;
+      shapeElement = `<circle cx="${cx}" cy="${cy}" r="100" fill="${mainColor}" stroke="${secondaryColor}" stroke-width="5" />`;
   }
   
   // Add some decorative elements based on category
@@ -153,9 +158,9 @@ function generateProductImage(category) {
   if (category.category === 'Audio') {
     // Sound waves
     decorations = `
-      <circle cx="${cx}" cy="${cy}" r="30" fill="${accentColor}" />
-      <circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="${accentColor}" stroke-width="2" stroke-dasharray="5,5" />
-      <circle cx="${cx}" cy="${cy}" r="70" fill="none" stroke="${accentColor}" stroke-width="2" stroke-dasharray="5,5" />
+      <circle cx="${cx}" cy="${cy}" r="30" fill="${secondaryColor}" />
+      <circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="${secondaryColor}" stroke-width="2" stroke-dasharray="5,5" />
+      <circle cx="${cx}" cy="${cy}" r="70" fill="none" stroke="${secondaryColor}" stroke-width="2" stroke-dasharray="5,5" />
     `;
   } else if (category.category === 'Lighting') {
     // Light rays
@@ -165,27 +170,27 @@ function generateProductImage(category) {
       const y1 = cy + 60 * Math.sin(angle);
       const x2 = cx + 120 * Math.cos(angle);
       const y2 = cy + 120 * Math.sin(angle);
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${accentColor}" stroke-width="3" />`;
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${secondaryColor}" stroke-width="3" />`;
     }).join('');
     decorations = rays;
   } else if (category.category === 'Wellness') {
     // Concentric circles for meditation
     decorations = `
-      <circle cx="${cx}" cy="${cy}" r="40" fill="none" stroke="${accentColor}" stroke-width="3" />
-      <circle cx="${cx}" cy="${cy}" r="60" fill="none" stroke="${accentColor}" stroke-width="2" />
-      <circle cx="${cx}" cy="${cy}" r="80" fill="none" stroke="${accentColor}" stroke-width="1" />
+      <circle cx="${cx}" cy="${cy}" r="40" fill="none" stroke="${secondaryColor}" stroke-width="3" />
+      <circle cx="${cx}" cy="${cy}" r="60" fill="none" stroke="${secondaryColor}" stroke-width="2" />
+      <circle cx="${cx}" cy="${cy}" r="80" fill="none" stroke="${secondaryColor}" stroke-width="1" />
     `;
   } else if (category.category === 'Time') {
     // Clock hands
-    const hourHand = `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 40}" stroke="${accentColor}" stroke-width="4" />`;
-    const minuteHand = `<line x1="${cx}" y1="${cy}" x2="${cx + 60}" y2="${cy}" stroke="${accentColor}" stroke-width="3" />`;
-    decorations = hourHand + minuteHand + `<circle cx="${cx}" cy="${cy}" r="5" fill="${accentColor}" />`;
+    const hourHand = `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 40}" stroke="${secondaryColor}" stroke-width="4" />`;
+    const minuteHand = `<line x1="${cx}" y1="${cy}" x2="${cx + 60}" y2="${cy}" stroke="${secondaryColor}" stroke-width="3" />`;
+    decorations = hourHand + minuteHand + `<circle cx="${cx}" cy="${cy}" r="5" fill="${secondaryColor}" />`;
   } else if (category.category === 'Creativity') {
     // Abstract shapes
     decorations = `
-      <circle cx="${cx - 40}" cy="${cy - 40}" r="20" fill="${accentColor}" fill-opacity="0.6" />
-      <rect x="${cx + 20}" y="${cy - 60}" width="30" height="30" fill="${accentColor}" fill-opacity="0.6" />
-      <polygon points="${cx - 20},${cy + 40} ${cx},${cy + 60} ${cx + 20},${cy + 40}" fill="${accentColor}" fill-opacity="0.6" />
+      <circle cx="${cx - 40}" cy="${cy - 40}" r="20" fill="${secondaryColor}" fill-opacity="0.6" />
+      <rect x="${cx + 20}" y="${cy - 60}" width="30" height="30" fill="${secondaryColor}" fill-opacity="0.6" />
+      <polygon points="${cx - 20},${cy + 40} ${cx},${cy + 60} ${cx + 20},${cy + 40}" fill="${secondaryColor}" fill-opacity="0.6" />
     `;
   }
   
@@ -235,7 +240,14 @@ async function generateRandomProduct() {
     
     // Generate and upload an image for the product
     const imageBuffer = generateProductImage(category);
-    await uploadFile(product.id, imageBuffer);
+    
+    // Log the image creation process
+    console.log(`Generated SVG image for product ${product.id} (${name}), category: ${category.category}, size: ${imageBuffer.length} bytes`);
+    
+    // Upload the SVG as the product image
+    await uploadFile(product.id, imageBuffer, "image/svg+xml");
+    
+    console.log(`Successfully uploaded image for product ${product.id}`);
     
     return product;
   } catch (error) {
