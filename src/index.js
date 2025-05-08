@@ -4,10 +4,22 @@ const fs = require("fs");
 const express = require("express");
 const ProductService = require("./services/ProductService");
 const PublisherService = require("./services/PublisherService");
+const { generateRandomProduct } = require("./services/RandomProductGenerator");
 const multer = require("multer");
 
 const app = express();
 app.use(express.json());
+// Add CORS headers
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const upload = multer({ dest: os.tmpdir() });
 
 app.get("/", (req, res) => {
@@ -32,6 +44,20 @@ app.post("/api/products", async (req, res) => {
   }
 });
 
+// New endpoint to generate a random product
+app.post("/api/random-product", async (req, res) => {
+  try {
+    const randomProduct = await generateRandomProduct();
+    res
+      .status(201)
+      .header("Location", `/api/products/${randomProduct.id}`)
+      .json(randomProduct);
+  } catch (error) {
+    console.error("Error generating random product:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/products/:id", async (req, res) => {
   const product = await ProductService.getProductById(req.params.id);
 
@@ -51,15 +77,20 @@ app.get("/api/products/:id/image", async (req, res) => {
     return;
   }
 
-  const imageStream = await ProductService.getProductImage(req.params.id);
+  try {
+    const imageStream = await ProductService.getProductImage(req.params.id);
 
-  if (!imageStream) {
+    if (!imageStream) {
+      res.status(404).send();
+      return;
+    }
+
+    res.contentType("image/png");
+    imageStream.pipe(res);
+  } catch (error) {
+    console.error("Error retrieving product image:", error);
     res.status(404).send();
-    return;
   }
-
-  res.contentType("image/png");
-  imageStream.pipe(res);
 });
 
 app.post("/api/products/:id/image", upload.single("file"), async (req, res) => {
