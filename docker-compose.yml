@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  catalog-app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PGHOST=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=catalog
+      - PGPORT=5432
+    depends_on:
+      - postgres
+    volumes:
+      - ./src:/app/src
+      - product-images:/app/images
+    networks:
+      - catalog-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - catalog-network
+
+networks:
+  catalog-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  product-images:
