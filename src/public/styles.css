@@ -1,0 +1,199 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+
+.container-fluid {
+    padding: 20px;
+    height: 100vh;
+}
+
+/* Product Catalog Styles */
+.catalog-container {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+.product-card {
+    border: 1px solid #eaeaea;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.product-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.product-placeholder {
+    width: 100%;
+    height: 180px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+}
+
+.product-title {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.product-price {
+    color: #e63946;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.product-description {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Chat Interface Styles */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    height: calc(100vh - 40px);
+}
+
+.chat-header {
+    padding: 15px;
+    border-bottom: 1px solid #eaeaea;
+    text-align: center;
+}
+
+.chat-header h3 {
+    margin: 0;
+    color: #4361ee;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+}
+
+.user-message {
+    align-self: flex-end;
+    background-color: #4361ee;
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+.assistant-message {
+    align-self: flex-start;
+    background-color: #e9ecef;
+    color: #212529;
+    border-bottom-left-radius: 5px;
+}
+
+.chat-input-container {
+    display: flex;
+    padding: 15px;
+    border-top: 1px solid #eaeaea;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    outline: none;
+}
+
+.chat-input:focus {
+    border-color: #4361ee;
+}
+
+.send-btn {
+    margin-left: 10px;
+    padding: 10px 15px;
+    background-color: #4361ee;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.send-btn:hover {
+    background-color: #3a56d4;
+}
+
+/* Product Modal Styles */
+.modal-body img {
+    max-width: 100%;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* Product Actions in Chat */
+.product-action-card {
+    background-color: #e9ecef;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 5px 0;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.action-buttons button {
+    flex: 1;
+    padding: 5px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.confirm-btn {
+    background-color: #28a745;
+    color: white;
+}
+
+.cancel-btn {
+    background-color: #dc3545;
+    color: white;
+}
