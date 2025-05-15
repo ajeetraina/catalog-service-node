@@ -1,0 +1,22 @@
+{
+  "name": "catalog-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for product catalog service",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "catalog",
+    "product",
+    "ai"
+  ],
+  "author": "",
+  "license": "CC0-1.0",
+  "dependencies": {
+    "mcp": "^1.4.0",
+    "pg": "^8.11.3"
+  }
+}

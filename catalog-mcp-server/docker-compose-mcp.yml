@@ -1,0 +1,24 @@
+
+services:
+  catalog-mcp-server:
+    build:
+      context: ./catalog-mcp-server
+      dockerfile: Dockerfile
+    container_name: catalog-mcp-server
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=catalog
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "9000:9000"  # MCP server port
+    networks:
+      - catalog-network
+
+networks:
+  catalog-network:
+    external: true  # This assumes your main app already creates this network
