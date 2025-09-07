@@ -1,0 +1,256 @@
+services:
+
+  ############## CATALOG API SERVICE (MAIN BACKEND) ##############
+  catalog-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: catalog-service-api
+    ports:
+      - "3001:3001"
+      - "9090:9090"  # Metrics port
+    env_file: 
+      - catalog-api.env
+    models:
+      llama_model:
+        endpoint_var: OPENAI_API_URL
+        model_var: OPENAI_MODEL
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+    volumes:
+      # For development - live code reloading
+      - .:/usr/local/app
+      - /usr/local/app/node_modules
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3001/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - catalog-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ################## DEMO WEB CLIENT ##################
+  demo-client:
+    image: node:lts-slim
+    container_name: catalog-demo-client
+    working_dir: /usr/local/app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./dev/webapp:/usr/local/app
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_CHAT_API_URL=http://localhost:3001
+      - VITE_HOST=0.0.0.0
+    networks:
+      - catalog-network
+    depends_on:
+      - catalog-api
+    restart: unless-stopped
+
+  ############## DATABASE AND VISUALIZER ##############
+  postgres:
+    image: postgres:17.4
+    container_name: catalog-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./dev/db:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: catalog
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    networks:
+      - catalog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d catalog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:9.2.0
+    container_name: catalog-pgadmin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin@mycomp.com
+      PGADMIN_DEFAULT_PASSWORD: secret
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  ############## LOCAL AWS (S3) ##############
+  aws:
+    image: localstack/localstack:4.3.0
+    container_name: catalog-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+      - HOSTNAME_EXTERNAL=localhost
+    volumes:
+      - localstack_data:/tmp/localstack
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  ############## MOCK INVENTORY SERVICE ##############
+  mock-inventory:
+    image: wiremock/wiremock:3.12.1
+    container_name: catalog-wiremock
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./dev/inventory-mocks:/home/wiremock
+    command: ["--global-response-templating", "--verbose"]
+    networks:
+      - catalog-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/__admin/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  ############## KAFKA AND VISUALIZATION ##############
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: catalog-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - catalog-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.2.0
+    container_name: catalog-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  ############## MONITORING STACK ##############
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: catalog-prometheus
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.external-url=http://localhost:9091'
+    ports:
+      - '9091:9090'
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: catalog-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_SERVER_PROTOCOL=http
+    ports:
+      - '3000:3000'
+    depends_on:
+      - prometheus
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.46
+    container_name: catalog-jaeger
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - '16686:16686'  # Jaeger UI
+      - '4317:4317'    # OTLP gRPC
+      - '4318:4318'    # OTLP HTTP
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+# NEW: First-class model support
+models:
+  llama_model:
+    model: ai/llama3.2:latest
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  grafana_data:
+  prometheus_data:
+  kafka_data:
+  localstack_data:
+
+networks:
+  catalog-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

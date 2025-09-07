@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Catalog Service Demo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            margin: 0; 
+            padding: 2rem; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 3rem; 
+            padding: 2rem 0;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0 0 1rem 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            color: #666;
+            font-size: 1.2rem;
+            margin: 0;
+        }
+        .services { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 1.5rem; 
+            margin-bottom: 3rem; 
+        }
+        .service { 
+            padding: 1.5rem; 
+            border: 1px solid #e1e5e9; 
+            border-radius: 8px; 
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        .service:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .service h3 {
+            margin: 0 0 1rem 0;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        .service a { 
+            text-decoration: none; 
+            color: #0066cc; 
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border: 2px solid #0066cc;
+            border-radius: 4px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        .service a:hover {
+            background: #0066cc;
+            color: white;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-area {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+        }
+        .test-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0.5rem;
+        }
+        .test-button:hover {
+            background: #218838;
+        }
+        #chatResponse {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Catalog Service Demo</h1>
+            <p>Complete containerized setup with AI chatbot and observability stack</p>
+            <div id="status" class="status loading">
+                ⏳ Checking services status...
+            </div>
+        </div>
+        
+        <div class="services">
+            <div class="service">
+                <h3>💬 Main Application</h3>
+                <a href="http://localhost:3001" target="_blank" id="mainApp">Catalog API</a>
+            </div>
+            <div class="service">
+                <h3>📊 Grafana</h3>
+                <a href="http://localhost:3000" target="_blank">Monitoring (admin/admin)</a>
+            </div>
+            <div class="service">
+                <h3>🗄️ pgAdmin</h3>
+                <a href="http://localhost:5050" target="_blank">Database Admin</a>
+            </div>
+            <div class="service">
+                <h3>📈 Kafka UI</h3>
+                <a href="http://localhost:8080" target="_blank">Message Broker</a>
+            </div>
+            <div class="service">
+                <h3>🔍 Jaeger</h3>
+                <a href="http://localhost:16686" target="_blank">Distributed Tracing</a>
+            </div>
+            <div class="service">
+                <h3>📉 Prometheus</h3>
+                <a href="http://localhost:9091" target="_blank">Metrics</a>
+            </div>
+        </div>
+
+        <div class="test-area">
+            <h2>🧪 Test Chat API</h2>
+            <button class="test-button" onclick="testHealthCheck()">Test Health Check</button>
+            <button class="test-button" onclick="testChat()">Test Chat API</button>
+            <div id="chatResponse"></div>
+        </div>
+    </div>
+
+    <script>
+        async function checkStatus() {
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                if (response.ok) {
+                    document.getElementById('status').className = 'status success';
+                    document.getElementById('status').innerHTML = '✅ Catalog API is running and healthy!';
+                } else {
+                    throw new Error('API not healthy');
+                }
+            } catch (error) {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').innerHTML = '❌ Catalog API is not responding. Check Docker logs.';
+            }
+        }
+
+        async function testHealthCheck() {
+            const responseDiv = document.getElementById('chatResponse');
+            responseDiv.innerHTML = 'Testing health endpoint...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                const data = await response.json();
+                responseDiv.innerHTML = `✅ Health check successful!\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                responseDiv.innerHTML = `❌ Health check failed: ${error.message}`;
+            }
+        }
+
+        async function testChat() {
+            const responseDiv = document.getElementById('chatResponse');
+            responseDiv.innerHTML = 'Testing chat API...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: 'Hello! Are you working with the new model integration?',
+                        conversation_id: 'demo-test'
+                    })
+                });
+                
+                const data = await response.json();
+                responseDiv.innerHTML = `✅ Chat API successful!\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                responseDiv.innerHTML = `❌ Chat API failed: ${error.message}`;
+            }
+        }
+
+        // Check status on page load
+        checkStatus();
+        
+        // Check status every 10 seconds
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>
