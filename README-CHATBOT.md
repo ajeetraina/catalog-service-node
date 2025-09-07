@@ -1,34 +1,65 @@
 # Product Catalog with AI Chatbot
 
-This branch demonstrates how to integrate a chatbot powered by Docker Model Runner and Llama 3.2 into your product catalog application.
+This branch demonstrates how to integrate a chatbot powered by **Docker Model Runner** (running on the host) and **Llama 3.2** into your product catalog application.
 
 ## 🤖 Features
 
 - **AI-Powered Chatbot**: Chat with an AI assistant about your product catalog
-- **Docker Model Runner**: Uses Docker Model Runner with Llama 3.2 for local AI inference
+- **Docker Model Runner**: Uses Docker Model Runner running on the host machine with Llama 3.2
 - **Real-time Product Context**: The chatbot has access to your current product inventory
 - **Floating Chat Interface**: Unobtrusive chat widget that doesn't interfere with the main catalog
-- **Monitoring Stack**: Includes Grafana and Prometheus for monitoring the application
+- **Monitoring Stack**: Includes Grafana, Prometheus, and Jaeger for observability
+
+## 🚀 Prerequisites
+
+**IMPORTANT**: This implementation requires Docker Model Runner to be running on your host machine.
+
+### 1. Install Docker Model Runner
+Follow the instructions at: https://docs.docker.com/model-runner/
+
+### 2. Start Docker Model Runner
+```bash
+# Start Docker Model Runner with the required model
+docker run -d --name model-runner \
+  -p 12434:12434 \
+  -v ~/.docker/models:/models \
+  docker/model-runner:latest
+```
+
+### 3. Download the Model
+```bash
+# Download Llama 3.2 model
+docker exec model-runner /app/download-model ai/llama3.2:1B-Q8_0
+```
 
 ## 🚀 Quick Start
 
-1. **Start the services**:
+1. **Ensure Docker Model Runner is running**:
    ```bash
+   curl http://localhost:12434/health
+   ```
+
+2. **Clone and start the catalog services**:
+   ```bash
+   git checkout model-runner-chatbot
    docker compose up -d
    ```
 
-2. **Wait for services to start**:
-   The first time you run this, Docker Model Runner will need to download the Llama 3.2 model, which may take a few minutes.
+3. **Wait for services to start**:
+   ```bash
+   docker compose logs catalog-api -f
+   ```
+   Wait until you see "Catalog Service is running on port 3001"
 
-3. **Access the application**:
-   - **Product Catalog**: http://localhost:5173
+4. **Access the application**:
+   - **Product Catalog with Chatbot**: http://localhost:5173
    - **Grafana Dashboard**: http://localhost:3000 (admin/admin)
-   - **Prometheus**: http://localhost:9090
-   - **Model Runner**: http://localhost:8081
+   - **Prometheus**: http://localhost:9091
+   - **Jaeger Tracing**: http://localhost:16686
 
-4. **Try the chatbot**:
+5. **Test the chatbot**:
    - Click the blue chat bubble in the bottom-right corner
-   - Ask questions like:
+   - Try these example questions:
      - "What products do you have?"
      - "Tell me about the most expensive item"
      - "Can you recommend something under $150?"
@@ -38,9 +69,9 @@ This branch demonstrates how to integrate a chatbot powered by Docker Model Runn
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend API   │    │ Docker Model    │
+│   Frontend      │    │   Catalog API   │    │ Docker Model    │
 │   (React)       │◄──►│   (Node.js)     │◄──►│   Runner        │
-│   Port: 5173    │    │   Port: 3001    │    │   Port: 8081    │
+│   Port: 5173    │    │   Port: 3001    │    │   (Host: 12434) │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
@@ -48,8 +79,9 @@ This branch demonstrates how to integrate a chatbot powered by Docker Model Runn
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   PostgreSQL    │    │   Monitoring    │    │   Llama 3.2     │
 │   Port: 5432    │    │   Grafana: 3000 │    │   Model         │
-└─────────────────┘    │   Prometheus:   │    └─────────────────┘
-                       │   9090          │
+│                 │    │   Prometheus:   │    │                 │
+│                 │    │   9091          │    │                 │
+└─────────────────┘    │   Jaeger: 16686 │    └─────────────────┘
                        └─────────────────┘
 ```
 
@@ -59,21 +91,22 @@ This branch demonstrates how to integrate a chatbot powered by Docker Model Runn
 |---------|------|-------------|
 | demo-client | 5173 | React frontend with chatbot |
 | catalog-api | 3001 | Node.js API with chat endpoint |
-| model-runner | 8081 | Docker Model Runner with Llama 3.2 |
+| llm | - | Docker Compose model provider (connects to host Model Runner) |
 | postgres | 5432 | Product database |
 | grafana | 3000 | Monitoring dashboard |
-| prometheus | 9090 | Metrics collection |
+| prometheus | 9091 | Metrics collection |
+| jaeger | 16686 | Distributed tracing |
 | pgadmin | 5050 | Database administration |
 | kafka | 9092 | Message streaming |
 | kafka-ui | 8080 | Kafka management interface |
 
 ## 💬 Chat API
 
-The chatbot is powered by a new `/api/chat` endpoint that:
+The chatbot uses the `/api/chat` endpoint that:
 
 1. Receives user messages
 2. Fetches current product catalog for context
-3. Sends requests to Docker Model Runner
+3. Sends requests to Docker Model Runner (on host)
 4. Returns AI-generated responses
 
 ### Example Chat Request
@@ -101,21 +134,19 @@ curl -X POST http://localhost:3001/api/chat \
 
 ### Environment Variables
 
-The application supports these environment variables:
+The application uses these key environment variables (defined in `catalog-api.env`):
 
-- `MODEL_RUNNER_URL`: URL of the Docker Model Runner (default: http://model-runner:8080)
-- `MODEL_RUNNER_MODEL`: Model to use (default: ai/llama3.2:latest)
-- `VITE_API_BASE_URL`: Frontend API base URL (default: http://localhost:3001)
+- `BASE_URL`: Model Runner endpoint (default: http://host.docker.internal:12434/engines/llama.cpp/v1/)
+- `MODEL`: Model to use (default: ai/llama3.2:1B-Q8_0)
+- `API_KEY`: API key for model service (default: dockermodelrunner)
 
 ### Model Configuration
 
-The Llama 3.2 model is configured in the `compose.yaml` file:
+The Llama 3.2 model is configured in the root `.env` file:
 
-```yaml
-models:
-  llama_model:
-    model: ai/llama3.2:latest
-    context_size: 131072
+```bash
+LLM_MODEL_NAME=ai/llama3.2:1B-Q8_0
+API_KEY=dockermodelrunner
 ```
 
 ## 📊 Monitoring
@@ -123,42 +154,65 @@ models:
 Access Grafana at http://localhost:3000 (admin/admin) to monitor:
 
 - API request metrics
-- Model Runner performance
+- Model response times
 - Database connections
 - System resources
+
+Access Jaeger at http://localhost:16686 for distributed tracing.
 
 ## 🔍 Troubleshooting
 
 ### Chatbot not responding
-1. Check if Model Runner is healthy: `curl http://localhost:8081/health`
-2. Check logs: `docker compose logs model-runner`
-3. Verify the model is downloaded: `docker compose logs model-runner | grep "model loaded"`
+1. **Check if Model Runner is running on host**:
+   ```bash
+   curl http://localhost:12434/health
+   ```
+
+2. **Verify model is loaded**:
+   ```bash
+   curl http://localhost:12434/v1/models
+   ```
+
+3. **Check catalog-api logs**:
+   ```bash
+   docker compose logs catalog-api
+   ```
+
+### Model Runner connection issues
+1. **Verify host.docker.internal resolves**:
+   ```bash
+   docker compose exec catalog-api ping host.docker.internal
+   ```
+
+2. **Check if port 12434 is accessible**:
+   ```bash
+   docker compose exec catalog-api wget -qO- http://host.docker.internal:12434/health
+   ```
 
 ### Frontend not connecting to backend
-1. Verify the backend is running: `curl http://localhost:3001/health`
-2. Check the VITE_API_BASE_URL environment variable
-3. Check CORS settings in the backend
+1. **Verify the backend is running**:
+   ```bash
+   curl http://localhost:3001/health
+   ```
 
-### Model Runner issues
-1. Check available disk space (models can be several GB)
-2. Increase Docker memory allocation if needed
-3. Check Docker socket permissions
+2. **Check CORS settings** in the backend code
 
 ## 🚀 Development
 
 To develop locally:
 
-1. **Backend changes**: The API code is volume-mounted, so changes reflect immediately
+1. **Backend changes**: The API code is volume-mounted for the dev client
 2. **Frontend changes**: Vite provides hot reloading
-3. **Model updates**: Modify the `models` section in `compose.yaml`
+3. **Model updates**: Modify the `LLM_MODEL_NAME` in `.env`
 
-## 🎯 Next Steps
+## 🎯 Key Differences from Previous Implementation
 
-- Add conversation history persistence
-- Implement user authentication
-- Add product image analysis capabilities
-- Create custom prompts for different use cases
-- Add support for multiple languages
+- ✅ **Model Runner runs on host** (not as container)
+- ✅ **Uses `provider.type: model`** in compose.yaml
+- ✅ **Connects via host.docker.internal:12434**
+- ✅ **Proper environment configuration** in catalog-api.env
+- ✅ **Health checks and observability** included
+- ✅ **Follows working example pattern** from genai-model-runner-metrics
 
 ## 📝 License
 
