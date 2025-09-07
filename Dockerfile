@@ -1,44 +1,64 @@
-###########################################################
-# Stage: base
-#
-# This stage serves as the base for all of the other stages.
-# By using this stage, it provides a consistent base for both
-# the dev and prod versions of the image.
-###########################################################
-FROM node:22-slim AS base
+# Multi-stage Dockerfile for the catalog service with AI chatbot
 
-# Setup a non-root user to run the app
-WORKDIR /usr/local/app
-RUN useradd -m appuser && chown -R appuser /usr/local/app
-USER appuser
-COPY --chown=appuser:appuser package.json package-lock.json ./
+# Backend stage
+FROM node:20-slim AS backend
 
+WORKDIR /app
 
-###########################################################
-# Stage: dev
-#
-# This stage is used to run the application in a development
-# environment. It installs all app dependencies and will
-# start the app in a mode that will watch for file changes
-# and automatically restart the app.
-###########################################################
-FROM base AS dev
-ENV NODE_ENV=development
-RUN npm install
-CMD ["yarn", "dev-container"]
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy package files
+COPY package*.json ./
 
-###########################################################
-# Stage: final
-#
-# This stage serves as the final image for production. It
-# installs only the production dependencies.
-###########################################################
-FROM base AS final
-ENV NODE_ENV=production
-RUN npm ci --production --ignore-scripts && npm cache clean --force
-COPY ./src ./src
+# Install dependencies
+RUN npm ci --only=production
 
-EXPOSE 3000
+# Copy backend source
+COPY backend/ ./backend/
+COPY src/ ./src/
 
-CMD [ "node", "src/index.js" ]
+# Copy the enhanced backend server
+COPY backend-chatbot.js ./
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Start the backend
+CMD ["node", "backend-chatbot.js"]
+
+# Frontend stage  
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /app
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build the frontend
+RUN npm run build
+
+# Frontend runtime
+FROM nginx:alpine AS frontend
+
+# Copy built frontend
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+# Copy nginx config
+COPY frontend/nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 5173
+
+CMD ["nginx", "-g", "daemon off;"]
