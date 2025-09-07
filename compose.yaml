@@ -9,6 +9,33 @@ services:
       - 5173:5173
     volumes:
       - ./dev/webapp:/usr/local/app
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_CHAT_API_URL=http://localhost:3001
+
+  ############## CATALOG API SERVICE ##############
+  catalog-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=catalog
+      - MODEL_RUNNER_URL=http://model-runner:8080
+      - MODEL_RUNNER_MODEL=ai/llama3.2:latest
+    depends_on:
+      - postgres
+      - model-runner
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./package.json:/usr/src/app/package.json
 
   ############## DATABASE AND VISUALIZER ##############
   postgres:
@@ -88,3 +115,70 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
       - kafka
+
+  ############## DOCKER MODEL RUNNER ##############
+  model-runner:
+    image: docker/model-runner:latest
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+    environment:
+      - LOG_LEVEL=debug
+      - ENABLE_GPU=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - model-cache:/models
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  ############## MONITORING STACK ##############
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+# Model specification for Docker Model Runner
+models:
+  llama_model:
+    model: ai/llama3.2:latest
+    context_size: 131072
+
+# Volumes
+volumes:
+  model-cache:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
