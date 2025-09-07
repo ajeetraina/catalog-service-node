@@ -1,15 +1,15 @@
 import { useCallback, useState } from "react";
 import productImage from "./product-image.png";
 
-export function ProductRow({ product, onChange }) {
+export function ProductRow({ product, onChange, apiBaseUrl }) {
   const [inventoryDetails, setInventoryDetails] = useState(null);
 
   const fetchInventoryDetails = useCallback(() => {
-    fetch(`/api/products/${product.id}`)
+    fetch(`${apiBaseUrl}/api/products/${product.id}`)
       .then((response) => response.json())
       .then(({ inventory }) => setInventoryDetails(inventory))
       .then(() => onChange());
-  }, [setInventoryDetails]);
+  }, [setInventoryDetails, apiBaseUrl, product.id, onChange]);
 
   const uploadImage = useCallback(() => {
     fetch(productImage)
@@ -22,12 +22,12 @@ export function ProductRow({ product, onChange }) {
         const formData = new FormData();
         formData.append("file", file);
 
-        fetch(`/api/products/${product.id}/image`, {
+        fetch(`${apiBaseUrl}/api/products/${product.id}/image`, {
           method: "POST",
           body: formData,
         }).then(() => onChange());
       });
-  }, []);
+  }, [apiBaseUrl, product.id, onChange]);
 
   return (
     <tr>
@@ -53,7 +53,7 @@ export function ProductRow({ product, onChange }) {
       </td>
       <td>
         {product.has_image ? (
-          <img src={`/api/products/${product.id}/image`} alt={product.name} />
+          <img src={`${apiBaseUrl}/api/products/${product.id}/image`} alt={product.name} />
         ) : (
           <button className="smaller" onClick={uploadImage}>
             Upload
