@@ -7,6 +7,9 @@
 ###########################################################
 FROM node:22-slim AS base
 
+# Install wget for health checks
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+
 # Setup a non-root user to run the app
 WORKDIR /usr/local/app
 RUN useradd -m appuser && chown -R appuser /usr/local/app
@@ -26,6 +29,24 @@ FROM base AS dev
 ENV NODE_ENV=development
 RUN npm install
 CMD ["yarn", "dev-container"]
+
+
+###########################################################
+# Stage: backend
+#
+# This stage is used for the backend API service with
+# chatbot functionality. It includes the necessary
+# dependencies and exposes both API and metrics ports.
+###########################################################
+FROM base AS backend
+ENV NODE_ENV=development
+RUN npm install
+COPY --chown=appuser:appuser ./src ./src
+
+EXPOSE 3001
+EXPOSE 9090
+
+CMD [ "node", "src/index.js" ]
 
 
 ###########################################################
