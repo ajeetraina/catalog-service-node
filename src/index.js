@@ -29,7 +29,14 @@ app.get("/", (req, res) => {
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    model_config: {
+      base_url: process.env.BASE_URL,
+      model: process.env.MODEL
+    }
+  });
 });
 
 // Metrics endpoint for Prometheus
@@ -43,6 +50,10 @@ catalog_products_total 0
 # HELP catalog_api_requests_total Total number of API requests
 # TYPE catalog_api_requests_total counter
 catalog_api_requests_total 0
+
+# HELP catalog_chat_requests_total Total number of chat requests
+# TYPE catalog_chat_requests_total counter
+catalog_chat_requests_total 0
   `);
 });
 
@@ -103,7 +114,7 @@ app.post("/api/products/:id/image", upload.single("file"), async (req, res) => {
   res.json(product);
 });
 
-// Chat endpoint for AI chatbot
+// Chat endpoint for AI chatbot using Docker Model Runner
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, conversation_id } = req.body;
@@ -123,8 +134,10 @@ ${products.map(p => `- ${p.name}: ${p.description} (Price: $${p.price}, UPC: ${p
 
 Please provide helpful, friendly responses about our products. If asked about products not in our catalog, let the user know that those items are not currently available but offer alternatives from our current selection if appropriate.`;
 
-    const modelRunnerUrl = process.env.MODEL_RUNNER_URL || 'http://model-runner:8080';
-    const model = process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:latest';
+    // Use environment variables for Model Runner configuration
+    const modelRunnerUrl = process.env.BASE_URL || 'http://host.docker.internal:12434/engines/llama.cpp/v1/';
+    const model = process.env.MODEL || 'ai/llama3.2:1B-Q8_0';
+    const apiKey = process.env.API_KEY || 'dockermodelrunner';
 
     // Prepare the request to Docker Model Runner
     const chatRequest = {
@@ -146,10 +159,11 @@ Please provide helpful, friendly responses about our products. If asked about pr
     console.log(`Sending request to Model Runner at ${modelRunnerUrl}`);
 
     // Send request to Docker Model Runner
-    const response = await fetch(`${modelRunnerUrl}/v1/chat/completions`, {
+    const response = await fetch(`${modelRunnerUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify(chatRequest),
       timeout: 30000
@@ -157,6 +171,8 @@ Please provide helpful, friendly responses about our products. If asked about pr
 
     if (!response.ok) {
       console.error(`Model Runner error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
       throw new Error(`Model Runner request failed: ${response.status}`);
     }
 
@@ -176,7 +192,7 @@ Please provide helpful, friendly responses about our products. If asked about pr
     console.error('Chat endpoint error:', error);
     res.status(500).json({ 
       error: "Sorry, I'm having trouble responding right now. Please try again.",
-      details: error.message 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -184,8 +200,9 @@ Please provide helpful, friendly responses about our products. If asked about pr
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`Catalog Service is running on port ${port}`);
-  console.log(`Model Runner URL: ${process.env.MODEL_RUNNER_URL || 'http://model-runner:8080'}`);
-  console.log(`Model: ${process.env.MODEL_RUNNER_MODEL || 'ai/llama3.2:latest'}`);
+  console.log(`Model Runner URL: ${process.env.BASE_URL || 'http://host.docker.internal:12434/engines/llama.cpp/v1/'}`);
+  console.log(`Model: ${process.env.MODEL || 'ai/llama3.2:1B-Q8_0'}`);
+  console.log(`API Key configured: ${!!process.env.API_KEY}`);
 });
 
 ["SIGINT", "SIGTERM"].forEach((signal) => {
