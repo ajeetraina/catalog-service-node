@@ -13,29 +13,26 @@ services:
       - VITE_API_BASE_URL=http://localhost:3001
       - VITE_CHAT_API_URL=http://localhost:3001
 
-  ############## CATALOG API SERVICE ##############
+  ############## CATALOG API SERVICE WITH CHAT ##############
   catalog-api:
+    env_file: 'catalog-api.env'
     build:
       context: .
       dockerfile: Dockerfile
+      target: backend
     ports:
       - "3001:3001"
-    environment:
-      - NODE_ENV=development
-      - PORT=3001
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=catalog
-      - MODEL_RUNNER_URL=http://model-runner:8080
-      - MODEL_RUNNER_MODEL=ai/llama3.2:latest
+      - "9090:9090"  # Metrics port
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3001/health']
+      interval: 3s
+      timeout: 3s
+      retries: 3
+    networks:
+      - catalog-network
     depends_on:
       - postgres
-      - model-runner
-    volumes:
-      - ./src:/usr/src/app/src
-      - ./package.json:/usr/src/app/package.json
+      - llm
 
   ############## DATABASE AND VISUALIZER ##############
   postgres:
@@ -48,6 +45,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: catalog
+    networks:
+      - catalog-network
 
   pgadmin:
     image: dpage/pgadmin4:9.2.0
@@ -63,6 +62,8 @@ services:
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     depends_on:
       - postgres
+    networks:
+      - catalog-network
 
   ############## LOCAL AWS ##############
   aws:
@@ -71,6 +72,8 @@ services:
       - "4566:4566"
     post_start:
       - command: awslocal s3api create-bucket --bucket product-images
+    networks:
+      - catalog-network
 
   ############## MOCK INVENTORY SERVICE ##############
   mock-inventory:
@@ -79,6 +82,8 @@ services:
       - 8090:8080
     volumes:
       - ./dev/inventory-mocks:/home/wiremock
+    networks:
+      - catalog-network
 
   ############## KAFKA AND VISUALIZATION ##############
   kafka:
@@ -104,6 +109,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     post_start:
       - command: /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic products --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
+    networks:
+      - catalog-network
 
   kafka-ui:
     image: kafbat/kafka-ui:v1.2.0
@@ -115,70 +122,63 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
       - kafka
-
-  ############## DOCKER MODEL RUNNER ##############
-  model-runner:
-    image: docker/model-runner:latest
-    ports:
-      - "8081:8080"
-      - "9091:9090"
-    environment:
-      - LOG_LEVEL=debug
-      - ENABLE_GPU=false
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - model-cache:/models
-    healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health']
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
+    networks:
+      - catalog-network
 
   ############## MONITORING STACK ##############
   prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
+    image: prom/prometheus:v2.45.0
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
-    restart: unless-stopped
+    ports:
+      - '9091:9090'
+    networks:
+      - catalog-network
 
   grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+    image: grafana/grafana:10.1.0
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-    restart: unless-stopped
+      - GF_SERVER_DOMAIN=localhost
+    ports:
+      - '3000:3000'
     depends_on:
       - prometheus
+    networks:
+      - catalog-network
 
-# Model specification for Docker Model Runner
-models:
-  llama_model:
-    model: ai/llama3.2:latest
-    context_size: 131072
+  jaeger:
+    image: jaegertracing/all-in-one:1.46
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    ports:
+      - '16686:16686'  # UI
+      - '4317:4317'    # OTLP gRPC
+      - '4318:4318'    # OTLP HTTP
+    networks:
+      - catalog-network
 
-# Volumes
+  ############## LLM SERVICE ##############
+  # LLM service using Docker Compose's model provider (connects to host Model Runner)
+  llm:
+    provider:
+      type: model
+      options:
+        model: ${LLM_MODEL_NAME:-ai/llama3.2:1B-Q8_0}
+
 volumes:
-  model-cache:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
+  grafana-data:
+
+networks:
+  catalog-network:
+    driver: bridge
