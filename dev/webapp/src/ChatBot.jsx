@@ -36,7 +36,8 @@ export function ChatBot() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -80,67 +81,135 @@ export function ChatBot() {
     }
   };
 
+  // Chat bubble (always visible for debugging)
   if (!isOpen) {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={() => setIsOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-colors duration-200"
-          aria-label="Open chat"
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 9999,
+          backgroundColor: '#3b82f6',
+          borderRadius: '50%',
+          width: '60px',
+          height: '60px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+          border: '2px solid white'
+        }}
+        onClick={() => setIsOpen(true)}
+        title="Open AI Chat Assistant"
+      >
+        <svg
+          style={{ width: '24px', height: '24px', color: 'white' }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-            />
-          </svg>
-        </button>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          />
+        </svg>
       </div>
     );
   }
 
+  // Chat window
   return (
-    <div className="fixed bottom-4 right-4 w-96 h-96 bg-white border border-gray-300 rounded-lg shadow-xl flex flex-col z-50">
+    <div 
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        width: '384px',
+        height: '500px',
+        backgroundColor: 'white',
+        border: '1px solid #d1d5db',
+        borderRadius: '12px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 9999,
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      }}
+    >
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
-        <h3 className="font-semibold">Product Catalog Assistant</h3>
+      <div 
+        style={{
+          backgroundColor: '#3b82f6',
+          color: 'white',
+          padding: '16px',
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <h3 style={{ margin: 0, fontWeight: '600', fontSize: '16px' }}>
+          Product Catalog Assistant
+        </h3>
         <button
           onClick={() => setIsOpen(false)}
-          className="text-white hover:text-gray-200 transition-colors"
-          aria-label="Close chat"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '18px',
+            padding: '4px'
+          }}
+          title="Close chat"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          ×
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div 
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}
+      >
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            style={{
+              display: 'flex',
+              justifyContent: message.role === "user" ? 'flex-end' : 'flex-start'
+            }}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg text-sm ${
-                message.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-800"
-              }`}
+              style={{
+                maxWidth: '80%',
+                padding: '8px 12px',
+                borderRadius: '12px',
+                fontSize: '14px',
+                backgroundColor: message.role === "user" ? '#3b82f6' : '#f3f4f6',
+                color: message.role === "user" ? 'white' : '#374151'
+              }}
             >
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                {message.content}
+              </p>
               <p
-                className={`text-xs mt-1 ${
-                  message.role === "user" ? "text-blue-100" : "text-gray-500"
-                }`}
+                style={{
+                  margin: '4px 0 0 0',
+                  fontSize: '12px',
+                  opacity: 0.7
+                }}
               >
                 {message.timestamp.toLocaleTimeString()}
               </p>
@@ -148,12 +217,20 @@ export function ChatBot() {
           </div>
         ))}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm">
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div
+              style={{
+                backgroundColor: '#f3f4f6',
+                color: '#374151',
+                padding: '8px 12px',
+                borderRadius: '12px',
+                fontSize: '14px'
+              }}
+            >
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <div style={{ width: '8px', height: '8px', backgroundColor: '#9ca3af', borderRadius: '50%', animation: 'bounce 1s infinite' }}></div>
+                <div style={{ width: '8px', height: '8px', backgroundColor: '#9ca3af', borderRadius: '50%', animation: 'bounce 1s infinite 0.1s' }}></div>
+                <div style={{ width: '8px', height: '8px', backgroundColor: '#9ca3af', borderRadius: '50%', animation: 'bounce 1s infinite 0.2s' }}></div>
               </div>
             </div>
           </div>
@@ -162,21 +239,39 @@ export function ChatBot() {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex space-x-2">
+      <div style={{ padding: '16px', borderTop: '1px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
           <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask about our products..."
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            style={{
+              flex: 1,
+              resize: 'none',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              fontSize: '14px',
+              fontFamily: 'inherit',
+              outline: 'none'
+            }}
             rows="2"
             disabled={isLoading}
           />
           <button
             onClick={sendMessage}
             disabled={isLoading || !inputMessage.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+            style={{
+              backgroundColor: isLoading || !inputMessage.trim() ? '#9ca3af' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: isLoading || !inputMessage.trim() ? 'not-allowed' : 'pointer'
+            }}
           >
             Send
           </button>
