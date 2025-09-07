@@ -17,29 +17,8 @@ This branch demonstrates how to integrate a chatbot powered by **Docker Model Ru
 ### 1. Install Docker Model Runner
 Follow the instructions at: https://docs.docker.com/model-runner/
 
-### 2. Start Docker Model Runner
-```bash
-# Start Docker Model Runner with the required model
-docker run -d --name model-runner \
-  -p 12434:12434 \
-  -v ~/.docker/models:/models \
-  docker/model-runner:latest
-```
 
-### 3. Download the Model
-```bash
-# Download Llama 3.2 model
-docker exec model-runner /app/download-model ai/llama3.2:1B-Q8_0
-```
-
-## 🚀 Quick Start
-
-1. **Ensure Docker Model Runner is running**:
-   ```bash
-   curl http://localhost:12434/health
-   ```
-
-2. **Clone and start the catalog services**:
+### 2. Clone and start the catalog services:
    ```bash
    git checkout model-runner-chatbot
    docker compose up -d
