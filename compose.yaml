@@ -1,207 +1,85 @@
 services:
-
-  ################## DEMO WEB CLIENT ##################
-  demo-client:
-    image: node:lts-slim
-    working_dir: /usr/local/app
-    command: yarn dev
-    ports:
-      - 5173:5173
-    volumes:
-      - ./dev/webapp:/usr/local/app
-    environment:
-      - VITE_CHATBOT_API_URL=http://localhost:3001
-    depends_on:
-      - chatbot-backend
-    networks:
-      - catalog-network
-
-  ################## CHATBOT BACKEND ##################
-  chatbot-backend:
+  backend:
+    env_file: 'backend.env'
     build:
-      context: ./chatbot-backend
-      dockerfile: Dockerfile
-    container_name: catalog-chatbot-backend
+      context: .
+      target: backend
     ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=development
-      - PORT=3001
-      - MODEL_RUNNER_URL=http://model-runner:8080
-      - MODEL_NAME=ai/llama3.2:3B-Q8_0
-      - CATALOG_API_URL=http://host.docker.internal:3000
-    depends_on:
-      - model-runner
-    networks:
-      - catalog-network
-    restart: unless-stopped
-
-  ################## AI MODEL RUNNER ##################
-  model-runner:
-    image: docker/model-runner:latest
-    container_name: catalog-model-runner
-    ports:
-      - "8080:8080"
-      - "9090:9090"
-    environment:
-      - LOG_LEVEL=debug
-      - ENABLE_GPU=false
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - model-cache:/models
+      - '8080:8080'
+      - '9090:9090'  # Metrics port
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health']
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 3s
+      timeout: 3s
+      retries: 3
     networks:
-      - catalog-network
-    restart: unless-stopped
-
-  ############## DATABASE AND VISUALIZER ##############
-  postgres:
-    image: postgres:17.4
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./dev/db:/docker-entrypoint-initdb.d
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: catalog
-    networks:
-      - catalog-network
-
-  pgadmin:
-    image: dpage/pgadmin4:9.2.0
-    ports:
-      - "5050:80"
-    volumes:
-      - ./dev/pgadmin/servers.json:/pgadmin4/servers.json
-      - ./dev/pgadmin/pgpass:/config/pgpass
-    environment:
-      PGADMIN_DEFAULT_EMAIL: pgadmin@mycomp.com
-      PGADMIN_DEFAULT_PASSWORD: secret
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      - app-network
     depends_on:
-      - postgres
-    networks:
-      - catalog-network
+      - llm
 
-  ############## LOCAL AWS ##############
-  aws:
-    image: localstack/localstack:4.3.0
+  frontend:
+    build:
+      context: ./frontend
     ports:
-      - "4566:4566"
-    post_start:
-      - command: awslocal s3api create-bucket --bucket product-images
-    networks:
-      - catalog-network
-
-  ############## MOCK INVENTORY SERVICE ##############
-  mock-inventory:
-    image: wiremock/wiremock:3.12.1
-    ports:
-      - 8090:8080
-    volumes:
-      - ./dev/inventory-mocks:/home/wiremock
-    networks:
-      - catalog-network
-
-  ############## KAFKA AND VISUALIZATION ##############
-  kafka:
-    image: apache/kafka:4.0.0
-    ports:
-      - 9092:9092
-    environment:
-      # Configure listeners for both docker and host communication
-      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
-
-      # Settings required for KRaft mode
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
-
-      # Listener to use for broker-to-broker communication
-      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
-
-      # Required for a single node cluster
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    post_start:
-      - command: /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic products --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
-    networks:
-      - catalog-network
-
-  kafka-ui:
-    image: kafbat/kafka-ui:v1.2.0
-    ports:
-      - 8081:8080
-    environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+      - '5173:5173'
     depends_on:
-      - kafka
+      backend:
+        condition: service_healthy
     networks:
-      - catalog-network
+      - app-network
 
-  ############## MONITORING STACK ##############
   prometheus:
     image: prom/prometheus:v2.45.0
-    container_name: catalog-prometheus
-    ports:
-      - "9091:9090"
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+    ports:
+      - '9091:9090'
     networks:
-      - catalog-network
-    restart: unless-stopped
+      - app-network
 
   grafana:
     image: grafana/grafana:10.1.0
-    container_name: catalog-grafana
-    ports:
-      - "3002:3000"
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_DOMAIN=localhost
+    ports:
+      - '3001:3000'
     depends_on:
       - prometheus
     networks:
-      - catalog-network
-    restart: unless-stopped
+      - app-network
 
-# Models configuration for Docker Model Runner
-models:
-  llama_model:
-    model: ai/llama3.2:3B-Q8_0
-    context_size: 32768
+  jaeger:
+    image: jaegertracing/all-in-one:1.46
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    ports:
+      - '16686:16686'  # UI
+      - '4317:4317'    # OTLP gRPC
+      - '4318:4318'    # OTLP HTTP
+    networks:
+      - app-network
 
-# Networks
-networks:
-  catalog-network:
-    driver: bridge
+  # LLM service using Docker Compose's model provider
+  llm:
+    provider:
+      type: model
+      options:
+        model: ${LLM_MODEL_NAME:-ai/llama3.2:3B-Q8_0}
 
-# Volumes
 volumes:
-  model-cache:
-    driver: local
-  prometheus-data:
-    driver: local
   grafana-data:
-    driver: local
+
+networks:
+  app-network:
+    driver: bridge
