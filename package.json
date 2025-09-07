@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node src/index.js",
+    "start:chatbot": "node backend-chatbot.js",
     "dev": "nodemon --inspect src/index.js --ignore dev",
+    "dev:chatbot": "nodemon --inspect backend-chatbot.js --ignore dev",
     "dev-container": "nodemon src/index.js",
     "prettier": "prettier --write \"**/*.js\"",
     "prettier-check": "prettier --check \"**/*.js\"",
@@ -15,6 +17,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.651.1",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "kafkajs": "^2.2.4",
