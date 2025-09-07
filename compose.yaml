@@ -9,6 +9,54 @@ services:
       - 5173:5173
     volumes:
       - ./dev/webapp:/usr/local/app
+    environment:
+      - VITE_CHATBOT_API_URL=http://localhost:3001
+    depends_on:
+      - chatbot-backend
+    networks:
+      - catalog-network
+
+  ################## CHATBOT BACKEND ##################
+  chatbot-backend:
+    build:
+      context: ./chatbot-backend
+      dockerfile: Dockerfile
+    container_name: catalog-chatbot-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MODEL_RUNNER_URL=http://model-runner:8080
+      - MODEL_NAME=ai/llama3.2:3B-Q8_0
+      - CATALOG_API_URL=http://host.docker.internal:3000
+    depends_on:
+      - model-runner
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  ################## AI MODEL RUNNER ##################
+  model-runner:
+    image: docker/model-runner:latest
+    container_name: catalog-model-runner
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - LOG_LEVEL=debug
+      - ENABLE_GPU=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - model-cache:/models
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - catalog-network
+    restart: unless-stopped
 
   ############## DATABASE AND VISUALIZER ##############
   postgres:
@@ -21,6 +69,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: catalog
+    networks:
+      - catalog-network
 
   pgadmin:
     image: dpage/pgadmin4:9.2.0
@@ -36,6 +86,8 @@ services:
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     depends_on:
       - postgres
+    networks:
+      - catalog-network
 
   ############## LOCAL AWS ##############
   aws:
@@ -44,6 +96,8 @@ services:
       - "4566:4566"
     post_start:
       - command: awslocal s3api create-bucket --bucket product-images
+    networks:
+      - catalog-network
 
   ############## MOCK INVENTORY SERVICE ##############
   mock-inventory:
@@ -52,6 +106,8 @@ services:
       - 8090:8080
     volumes:
       - ./dev/inventory-mocks:/home/wiremock
+    networks:
+      - catalog-network
 
   ############## KAFKA AND VISUALIZATION ##############
   kafka:
@@ -77,14 +133,75 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     post_start:
       - command: /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic products --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
+    networks:
+      - catalog-network
 
   kafka-ui:
     image: kafbat/kafka-ui:v1.2.0
     ports:
-      - 8080:8080
+      - 8081:8080
     environment:
       DYNAMIC_CONFIG_ENABLED: 'true'
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
     depends_on:
       - kafka
+    networks:
+      - catalog-network
+
+  ############## MONITORING STACK ##############
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: catalog-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: catalog-grafana
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=localhost
+    depends_on:
+      - prometheus
+    networks:
+      - catalog-network
+    restart: unless-stopped
+
+# Models configuration for Docker Model Runner
+models:
+  llama_model:
+    model: ai/llama3.2:3B-Q8_0
+    context_size: 32768
+
+# Networks
+networks:
+  catalog-network:
+    driver: bridge
+
+# Volumes
+volumes:
+  model-cache:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
